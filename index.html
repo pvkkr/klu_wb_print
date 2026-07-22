@@ -1,4 +1,10 @@
-<!DOCTYPE html>
+
+# The issue: when user types in one field, it triggers a full re-render which destroys
+# and recreates ALL inputs, causing focus loss and cursor jumps.
+# Fix: Use event delegation instead of re-rendering the entire DOM on every keystroke.
+# Only update the data model and the cost preview/receipt, don't re-render the form fields.
+
+new_html = '''<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -140,6 +146,9 @@
     border-top:1px dashed var(--rule); margin-top:6px; padding-top:6px;
     font-weight:700; font-size:14px; color:var(--ready);
   }
+  .item-cost-preview.empty{
+    color:var(--ink-soft); font-style:italic; text-align:center;
+  }
 
   /* --- Receipt --- */
   .receipt{
@@ -200,15 +209,6 @@
     .sheet{ padding-bottom:64px; }
   }
 
-  /* binding visual cards */
-  .binding-visual{
-    display:flex; flex-direction:column; align-items:center; gap:4px;
-    padding:10px 4px;
-  }
-  .binding-visual .bind-icon{ font-size:24px; }
-  .binding-visual .bind-name{ font-size:12px; font-weight:700; }
-  .binding-visual .bind-desc{ font-size:10px; opacity:0.8; line-height:1.2; }
-
   /* Toggle styles for binding and student type */
   .toggle-row{ display:flex; gap:8px; flex-wrap:wrap; }
   .toggle{ flex:1; min-width:100px; position:relative; }
@@ -232,8 +232,11 @@
     text-align:center;
   }
   .side-input:focus{ border-color:var(--ink); background:#fff; }
+
+  /* Side hint */
+  .side-hint{ font-size:12px; color:var(--ink-soft); margin-top:8px; display:block; }
+  .side-hint strong{ color:var(--ready); }
 </style>
-<base target="_blank">
 </head>
 <body>
 
@@ -375,23 +378,151 @@
   }
 
   function addItem() {
-    items.push(newItem());
-    render();
+    const item = newItem();
+    items.push(item);
+    buildItemRow(item, items.length - 1);
+    calculate();
   }
 
   function removeItem(id) {
     if (items.length <= 1) return;
+    const row = document.querySelector(`.item-card[data-item-id="${id}"]`);
+    if (row) row.remove();
     items = items.filter(i => i.id !== id);
-    render();
+    // Renumber remaining items
+    document.querySelectorAll('.item-card').forEach((card, idx) => {
+      const label = card.querySelector('.card-label span');
+      if (label) label.textContent = `Subject ${idx + 1}`;
+    });
+    calculate();
   }
 
-  function render() {
-    itemRowsEl.innerHTML = '';
-    items.forEach((item, idx) => {
-      const qty = parseInt(item.qty) || 1;
-      const pages = parseInt(item.pages) || 0;
+  function buildItemRow(item, idx) {
+    const row = document.createElement('div');
+    row.className = 'card item-card';
+    row.dataset.itemId = item.id;
+    row.innerHTML = `
+      <p class="card-label">
+        <span>Subject ${idx + 1}</span>
+        ${items.length > 1 ? `<button type="button" class="remove-row" data-id="${item.id}">Remove</button>` : ''}
+      </p>
+      <div class="field">
+        <span class="field-label">Subject name <span class="field-hint">(short form is fine — e.g. WSN, DAA, OS)</span></span>
+        <input type="text" placeholder="e.g. WSN" value="${item.name}" data-id="${item.id}" data-key="name">
+      </div>
+
+      <div class="field">
+        <span class="field-label">How many pages in your PDF? <span class="field-hint">(Open the PDF and check the page count)</span></span>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="4" placeholder="Type number of pages" value="${item.pages}" data-id="${item.id}" data-key="pages">
+      </div>
+
+      <div class="field">
+        <span class="field-label">How many copies? <span class="field-hint">(How many printouts you want)</span></span>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="3" placeholder="Type number of copies" value="${item.qty}" data-id="${item.id}" data-key="qty">
+      </div>
+
+      <div class="field">
+        <span class="field-label">Print on one side or both sides? <span class="field-hint">(Type 1 or 2)</span></span>
+        <input type="text" inputmode="numeric" pattern="[1-2]" class="side-input" maxlength="1" placeholder="Type 1 for one side, 2 for both sides" value="${item.side === 'double' ? '2' : '1'}" data-id="${item.id}" data-key="side">
+        <span class="side-hint" data-id="${item.id}" data-key="side-hint"></span>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Choose binding type</span>
+        <div class="toggle-row" role="radiogroup" aria-label="Binding type">
+          <div class="toggle">
+            <input type="radio" name="bind-${item.id}" id="tape-${item.id}" value="tape" data-id="${item.id}" ${item.bindingType === 'tape' ? 'checked' : ''}>
+            <label for="tape-${item.id}">📎 Tape<span class="toggle-price">₹20</span></label>
+          </div>
+          <div class="toggle">
+            <input type="radio" name="bind-${item.id}" id="spiral-${item.id}" value="spiral" data-id="${item.id}" ${item.bindingType === 'spiral' ? 'checked' : ''}>
+            <label for="spiral-${item.id}">🌀 Spiral<span class="toggle-price">₹20</span></label>
+          </div>
+          <div class="toggle">
+            <input type="radio" name="bind-${item.id}" id="book-${item.id}" value="book" data-id="${item.id}" ${item.bindingType === 'book' ? 'checked' : ''}>
+            <label for="book-${item.id}">📘 Book Bind<span class="toggle-price">₹50</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="item-cost-preview empty" data-id="${item.id}" data-key="cost-preview">
+        Enter pages and copies above to see cost breakdown
+      </div>
+    `;
+    itemRowsEl.appendChild(row);
+  }
+
+  // Event delegation — single listener on container, no re-rendering on input
+  itemRowsEl.addEventListener('input', function(e) {
+    const el = e.target;
+    if (!el.dataset.id || !el.dataset.key) return;
+    
+    const item = items.find(i => i.id == el.dataset.id);
+    if (!item) return;
+
+    if (el.dataset.key === 'name') {
+      item.name = el.value;
+    } else if (el.dataset.key === 'pages' || el.dataset.key === 'qty') {
+      const digitsOnly = el.value.replace(/[^0-9]/g, '');
+      if (digitsOnly !== el.value) el.value = digitsOnly;
+      item[el.dataset.key] = digitsOnly;
+    } else if (el.dataset.key === 'side') {
+      const digitsOnly = el.value.replace(/[^0-9]/g, '');
+      if (digitsOnly !== el.value) el.value = digitsOnly;
+      item.side = (digitsOnly === '2') ? 'double' : 'single';
+    }
+    
+    updateItemPreview(item);
+    calculate();
+  });
+
+  itemRowsEl.addEventListener('blur', function(e) {
+    const el = e.target;
+    if (!el.dataset.id || !el.dataset.key) return;
+    if (el.dataset.key !== 'pages' && el.dataset.key !== 'qty') return;
+    
+    const item = items.find(i => i.id == el.dataset.id);
+    if (!item) return;
+    
+    const val = parseInt(item[el.dataset.key], 10);
+    if (!val || val < 1) {
+      item[el.dataset.key] = '';
+      el.value = '';
+      updateItemPreview(item);
+      calculate();
+    }
+  }, true);
+
+  itemRowsEl.addEventListener('change', function(e) {
+    const el = e.target;
+    if (el.name && el.name.startsWith('bind-')) {
+      const item = items.find(i => i.id == el.dataset.id);
+      if (item) {
+        item.bindingType = el.value;
+        updateItemPreview(item);
+        calculate();
+      }
+    }
+  });
+
+  itemRowsEl.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-row')) {
+      removeItem(parseInt(e.target.dataset.id));
+    }
+  });
+
+  function updateItemPreview(item) {
+    const pages = parseInt(item.pages) || 0;
+    const qty = parseInt(item.qty) || 0;
+    
+    const hintEl = document.querySelector(`.side-hint[data-id="${item.id}"][data-key="side-hint"]`);
+    const previewEl = document.querySelector(`.item-cost-preview[data-id="${item.id}"][data-key="cost-preview"]`);
+    
+    if (!hintEl || !previewEl) return;
+
+    if (pages > 0 && qty > 0) {
       const singlePapers = pages * qty;
-      const doublePapers = pages > 0 ? Math.ceil(pages / 2) * qty : 0;
+      const doublePapers = Math.ceil(pages / 2) * qty;
       const papersSaved = singlePapers - doublePapers;
       const moneySaved = papersSaved * RATE_PER_PAPER;
       const currentPapers = item.side === 'double' ? doublePapers : singlePapers;
@@ -401,119 +532,24 @@
       const serviceCost = SERVICE_FEE * qty;
       const itemTotal = printCost + bindCost + serviceCost;
 
-      const row = document.createElement('div');
-      row.className = 'card item-card';
-      row.innerHTML = `
-        <p class="card-label">
-          <span>Subject ${idx + 1}</span>
-          ${items.length > 1 ? `<button type="button" class="remove-row" data-id="${item.id}">Remove</button>` : ''}
-        </p>
-        <div class="field">
-          <span class="field-label">Subject name <span class="field-hint">(short form is fine — e.g. WSN, DAA, OS)</span></span>
-          <input type="text" placeholder="e.g. WSN" value="${item.name}" data-id="${item.id}" data-key="name">
-        </div>
+      if (item.side === 'double') {
+        hintEl.innerHTML = `✅ 2-side will use <strong>${doublePapers} papers</strong> — saves ₹${moneySaved} compared to 1-side (${singlePapers} papers)`;
+      } else {
+        hintEl.innerHTML = `1-side will use <strong>${singlePapers} papers</strong>. Type 2 above to save ₹${moneySaved} (uses only ${doublePapers} papers)`;
+      }
 
-        <div class="field">
-          <span class="field-label">How many pages in your PDF? <span class="field-hint">(Open the PDF and check the page count)</span></span>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="4" placeholder="Type number of pages" value="${item.pages}" data-id="${item.id}" data-key="pages">
-        </div>
-
-        <div class="field">
-          <span class="field-label">How many copies? <span class="field-hint">(How many printouts you want)</span></span>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="3" placeholder="Type number of copies" value="${item.qty}" data-id="${item.id}" data-key="qty">
-        </div>
-
-        <div class="field">
-          <span class="field-label">Print on one side or both sides? <span class="field-hint">(Type 1 or 2)</span></span>
-          <input type="text" inputmode="numeric" pattern="[1-2]" class="side-input" maxlength="1" placeholder="Type 1 for one side, 2 for both sides" value="${item.side === 'double' ? '2' : '1'}" data-id="${item.id}" data-key="side">
-          ${pages > 0 && qty > 0 ? `
-            <span class="field-hint" style="margin-top:8px;">
-              ${item.side === 'double' 
-                ? `✅ 2-side will use <strong>${doublePapers} papers</strong> — saves ₹${moneySaved} compared to 1-side (${singlePapers} papers)` 
-                : `1-side will use <strong>${singlePapers} papers</strong>. Type 2 above to save ₹${moneySaved} (uses only ${doublePapers} papers)`}
-            </span>
-          ` : ''}
-        </div>
-
-        <div class="field">
-          <span class="field-label">Choose binding type</span>
-          <div class="toggle-row" role="radiogroup" aria-label="Binding type">
-            <div class="toggle">
-              <input type="radio" name="bind-${item.id}" id="tape-${item.id}" value="tape" data-id="${item.id}" ${item.bindingType === 'tape' ? 'checked' : ''}>
-              <label for="tape-${item.id}">📎 Tape<span class="toggle-price">₹20</span></label>
-            </div>
-            <div class="toggle">
-              <input type="radio" name="bind-${item.id}" id="spiral-${item.id}" value="spiral" data-id="${item.id}" ${item.bindingType === 'spiral' ? 'checked' : ''}>
-              <label for="spiral-${item.id}">🌀 Spiral<span class="toggle-price">₹20</span></label>
-            </div>
-            <div class="toggle">
-              <input type="radio" name="bind-${item.id}" id="book-${item.id}" value="book" data-id="${item.id}" ${item.bindingType === 'book' ? 'checked' : ''}>
-              <label for="book-${item.id}">📘 Book Bind<span class="toggle-price">₹50</span></label>
-            </div>
-          </div>
-        </div>
-
-        ${pages > 0 && qty > 0 ? `
-        <div class="item-cost-preview">
-          <div class="cost-line"><span>Printing (${currentPapers} papers × ₹1)</span><span>₹${printCost}</span></div>
-          <div class="cost-line"><span>${item.bindingType === 'tape' ? 'Tape' : item.bindingType === 'book' ? 'Book' : 'Spiral'} binding × ${qty}</span><span>₹${bindCost}</span></div>
-          <div class="cost-line"><span>Service fee × ${qty}</span><span>₹${serviceCost}</span></div>
-          <div class="cost-line total"><span>Cost for this subject</span><span>₹${itemTotal}</span></div>
-        </div>
-        ` : '<div class="item-cost-preview" style="color:var(--ink-soft);"><em>Enter pages and copies above to see cost breakdown</em></div>'}
+      previewEl.classList.remove('empty');
+      previewEl.innerHTML = `
+        <div class="cost-line"><span>Printing (${currentPapers} papers × ₹1)</span><span>₹${printCost}</span></div>
+        <div class="cost-line"><span>${item.bindingType === 'tape' ? 'Tape' : item.bindingType === 'book' ? 'Book' : 'Spiral'} binding × ${qty}</span><span>₹${bindCost}</span></div>
+        <div class="cost-line"><span>Service fee × ${qty}</span><span>₹${serviceCost}</span></div>
+        <div class="cost-line total"><span>Cost for this subject</span><span>₹${itemTotal}</span></div>
       `;
-      itemRowsEl.appendChild(row);
-    });
-
-    // subject name
-    itemRowsEl.querySelectorAll('input[data-key="name"]').forEach(el => {
-      el.addEventListener('input', () => {
-        const item = items.find(i => i.id == el.dataset.id);
-        item.name = el.value;
-        calculate();
-      });
-    });
-
-    // number fields (pages, qty, side)
-    itemRowsEl.querySelectorAll('input.num-input, input.side-input').forEach(el => {
-      el.addEventListener('input', () => {
-        const digitsOnly = el.value.replace(/[^0-9]/g, '');
-        if (digitsOnly !== el.value) el.value = digitsOnly;
-        const item = items.find(i => i.id == el.dataset.id);
-
-        if (el.dataset.key === 'side') {
-          // Side: 1 = single, 2 = double, anything else defaults to single
-          item.side = (digitsOnly === '2') ? 'double' : 'single';
-        } else {
-          item[el.dataset.key] = digitsOnly;
-        }
-        render();
-      });
-      el.addEventListener('blur', () => {
-        const item = items.find(i => i.id == el.dataset.id);
-        if (el.dataset.key === 'pages' || el.dataset.key === 'qty') {
-          const val = parseInt(item[el.dataset.key], 10);
-          if (!val || val < 1) {
-            item[el.dataset.key] = '';
-            el.value = '';
-            render();
-          }
-        }
-      });
-    });
-
-    itemRowsEl.querySelectorAll('input[name^="bind-"]').forEach(el => {
-      el.addEventListener('change', () => {
-        const item = items.find(i => i.id == el.dataset.id);
-        item.bindingType = el.value;
-        render();
-      });
-    });
-    itemRowsEl.querySelectorAll('.remove-row').forEach(el => {
-      el.addEventListener('click', () => removeItem(parseInt(el.dataset.id)));
-    });
-
-    calculate();
+    } else {
+      hintEl.innerHTML = '';
+      previewEl.classList.add('empty');
+      previewEl.innerHTML = 'Enter pages and copies above to see cost breakdown';
+    }
   }
 
   function calculate() {
@@ -526,7 +562,7 @@
       const qty = parseInt(item.qty) || 0;
       const pages = parseInt(item.pages) || 0;
       if (qty === 0 || pages === 0) return;
-
+      
       const papersPerCopy = item.side === 'double' ? Math.ceil(pages / 2) : pages;
       const totalPapers = papersPerCopy * qty;
       const printCost = totalPapers * RATE_PER_PAPER;
@@ -568,7 +604,7 @@ Name: ${name || '(not entered yet)'}
 Type: ${studentType || '(not selected)'}
 Phone: ${phone || '(not entered yet)'}
 
-${waLines.join('\n')}
+${waLines.join('\\n')}
 Total service fee: ₹${SERVICE_FEE * totalCopies}
 Estimated total: ₹${grandTotal}
 
@@ -585,7 +621,7 @@ Estimated total: ₹${grandTotal}
   }
 
   function isValidPhone(phone) {
-    return /^\d{10}$/.test(phone.replace(/\D/g, '').slice(-10));
+    return /^\\d{10}$/.test(phone.replace(/\\D/g, '').slice(-10));
   }
 
   async function logOrderToSheet(name, phone) {
@@ -653,9 +689,19 @@ Estimated total: ₹${grandTotal}
 
   addRowBtn.addEventListener('click', addItem);
 
-  items.push(newItem());
-  render();
+  // Initialize with one item
+  const firstItem = newItem();
+  items.push(firstItem);
+  buildItemRow(firstItem, 0);
+  calculate();
 </script>
 
 </body>
-</html>
+</html>'''
+
+with open('/mnt/agents/output/klu_print_desk_order_form.html', 'w', encoding='utf-8') as f:
+    f.write(new_html)
+
+print("File updated successfully!")
+print("Key fix: Event delegation + targeted DOM updates instead of full re-render.")
+print("Now typing in any field only updates the preview/receipt — cursor stays put.")
