@@ -1,10 +1,4 @@
-
-# The issue: when user types in one field, it triggers a full re-render which destroys
-# and recreates ALL inputs, causing focus loss and cursor jumps.
-# Fix: Use event delegation instead of re-rendering the entire DOM on every keystroke.
-# Only update the data model and the cost preview/receipt, don't re-render the form fields.
-
-new_html = '''<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -135,8 +129,8 @@ new_html = '''<!DOCTYPE html>
   .field-error{
     color:var(--accent); font-size:12px; margin-top:8px; display:none; font-weight:600;
   }
+  .field-error.show{ display:block; }
 
-  /* --- Per-item cost preview --- */
   .item-cost-preview{
     background:#f0f4ec; border:2px dashed var(--rule); border-radius:10px;
     padding:12px 14px; margin-top:14px; font-family:'Space Mono', monospace; font-size:12px;
@@ -150,7 +144,6 @@ new_html = '''<!DOCTYPE html>
     color:var(--ink-soft); font-style:italic; text-align:center;
   }
 
-  /* --- Receipt --- */
   .receipt{
     background:var(--ink); color:var(--paper); border-radius:14px;
     padding:22px 20px 20px; font-family:'Space Mono', monospace;
@@ -191,7 +184,6 @@ new_html = '''<!DOCTYPE html>
   }
   footer a{ color:var(--ink); font-weight:700; text-decoration:none; border-bottom:2px solid var(--accent); }
 
-  /* sticky mobile total bar */
   .sticky-bar{
     position:fixed; left:0; right:0; bottom:0; background:var(--ink); color:var(--paper);
     padding:12px 16px; display:flex; align-items:center; justify-content:space-between;
@@ -209,7 +201,6 @@ new_html = '''<!DOCTYPE html>
     .sheet{ padding-bottom:64px; }
   }
 
-  /* Toggle styles for binding and student type */
   .toggle-row{ display:flex; gap:8px; flex-wrap:wrap; }
   .toggle{ flex:1; min-width:100px; position:relative; }
   .toggle input{ position:absolute; opacity:0; inset:0; cursor:pointer; margin:0; width:100%; height:100%; }
@@ -224,7 +215,6 @@ new_html = '''<!DOCTYPE html>
   .toggle input:checked + label{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
   .toggle input:focus-visible + label{ outline:3px solid var(--highlight); outline-offset:2px; }
 
-  /* Side selection - plain text input style */
   .side-input{
     width:100%; font-family:'IBM Plex Sans', sans-serif; font-size:18px; font-weight:500;
     color:var(--ink); background:var(--paper); border:2px solid var(--rule);
@@ -233,10 +223,10 @@ new_html = '''<!DOCTYPE html>
   }
   .side-input:focus{ border-color:var(--ink); background:#fff; }
 
-  /* Side hint */
   .side-hint{ font-size:12px; color:var(--ink-soft); margin-top:8px; display:block; }
   .side-hint strong{ color:var(--ready); }
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -331,7 +321,6 @@ new_html = '''<!DOCTYPE html>
 </div>
 
 <script>
-  // sprocket holes
   ['holes-l','holes-r'].forEach(id => {
     const holes = document.getElementById(id);
     const spacing = 60;
@@ -348,7 +337,7 @@ new_html = '''<!DOCTYPE html>
   const SERVICE_FEE = 10;
   const PHONE = "919390110070";
 
-  const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw-Z9ChKpup_fc4Rw_0ywIW1Af5Fq5zmhwlWkGko2F1m065w_IqGqezJElS9_MCC00P0A/exec";
+  const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxQ6chBbnT2-9uTFTB-bmJSo3xsZvqndboNAsWlmr7bXb-Y87lGOPcWzmcHzNlXASReGA/exec";
 
   const itemRowsEl = document.getElementById('item-rows');
   const addRowBtn = document.getElementById('add-row');
@@ -368,7 +357,6 @@ new_html = '''<!DOCTYPE html>
   let lastGrandTotal = 0;
   let lastItemsSummary = '';
   let lastServiceFee = 0;
-  let studentType = '';
 
   let nextId = 1;
   let items = [];
@@ -389,7 +377,6 @@ new_html = '''<!DOCTYPE html>
     const row = document.querySelector(`.item-card[data-item-id="${id}"]`);
     if (row) row.remove();
     items = items.filter(i => i.id !== id);
-    // Renumber remaining items
     document.querySelectorAll('.item-card').forEach((card, idx) => {
       const label = card.querySelector('.card-label span');
       if (label) label.textContent = `Subject ${idx + 1}`;
@@ -452,11 +439,10 @@ new_html = '''<!DOCTYPE html>
     itemRowsEl.appendChild(row);
   }
 
-  // Event delegation — single listener on container, no re-rendering on input
   itemRowsEl.addEventListener('input', function(e) {
     const el = e.target;
     if (!el.dataset.id || !el.dataset.key) return;
-    
+
     const item = items.find(i => i.id == el.dataset.id);
     if (!item) return;
 
@@ -471,7 +457,7 @@ new_html = '''<!DOCTYPE html>
       if (digitsOnly !== el.value) el.value = digitsOnly;
       item.side = (digitsOnly === '2') ? 'double' : 'single';
     }
-    
+
     updateItemPreview(item);
     calculate();
   });
@@ -480,10 +466,10 @@ new_html = '''<!DOCTYPE html>
     const el = e.target;
     if (!el.dataset.id || !el.dataset.key) return;
     if (el.dataset.key !== 'pages' && el.dataset.key !== 'qty') return;
-    
+
     const item = items.find(i => i.id == el.dataset.id);
     if (!item) return;
-    
+
     const val = parseInt(item[el.dataset.key], 10);
     if (!val || val < 1) {
       item[el.dataset.key] = '';
@@ -514,10 +500,10 @@ new_html = '''<!DOCTYPE html>
   function updateItemPreview(item) {
     const pages = parseInt(item.pages) || 0;
     const qty = parseInt(item.qty) || 0;
-    
+
     const hintEl = document.querySelector(`.side-hint[data-id="${item.id}"][data-key="side-hint"]`);
     const previewEl = document.querySelector(`.item-cost-preview[data-id="${item.id}"][data-key="cost-preview"]`);
-    
+
     if (!hintEl || !previewEl) return;
 
     if (pages > 0 && qty > 0) {
@@ -562,7 +548,7 @@ new_html = '''<!DOCTYPE html>
       const qty = parseInt(item.qty) || 0;
       const pages = parseInt(item.pages) || 0;
       if (qty === 0 || pages === 0) return;
-      
+
       const papersPerCopy = item.side === 'double' ? Math.ceil(pages / 2) : pages;
       const totalPapers = papersPerCopy * qty;
       const printCost = totalPapers * RATE_PER_PAPER;
@@ -601,10 +587,10 @@ new_html = '''<!DOCTYPE html>
 
     const message = `Hi! I'd like to place a print order:
 Name: ${name || '(not entered yet)'}
-Type: ${studentType || '(not selected)'}
+Type: ${getStudentType() || '(not selected)'}
 Phone: ${phone || '(not entered yet)'}
 
-${waLines.join('\\n')}
+${waLines.join('\n')}
 Total service fee: ₹${SERVICE_FEE * totalCopies}
 Estimated total: ₹${grandTotal}
 
@@ -620,8 +606,15 @@ Estimated total: ₹${grandTotal}
     whatsappCtaMobile.href = link;
   }
 
+  // Helper: read student type directly from DOM (more reliable than variable)
+  function getStudentType() {
+    const checked = document.querySelector('input[name="student-type"]:checked');
+    return checked ? checked.value : '';
+  }
+
   function isValidPhone(phone) {
-    return /^\\d{10}$/.test(phone.replace(/\\D/g, '').slice(-10));
+    const digits = phone.replace(/\D/g, '').slice(-10);
+    return /^\d{10}$/.test(digits);
   }
 
   async function logOrderToSheet(name, phone) {
@@ -637,10 +630,11 @@ Estimated total: ₹${grandTotal}
         body: JSON.stringify({
           name: name,
           phone: phone,
-          studentType: studentType,
+          studentType: getStudentType(),
           orderDetails: lastItemsSummary,
           serviceFee: lastServiceFee,
           total: lastGrandTotal,
+          paidAmount: 0,
           fullMessage: lastMessage,
           timestamp: new Date().toLocaleString('en-IN', { 
             timeZone: 'Asia/Kolkata', 
@@ -659,14 +653,31 @@ Estimated total: ₹${grandTotal}
     e.preventDefault();
     const name = customerNameEl.value.trim();
     const phone = customerPhoneEl.value.trim();
+    const stuType = getStudentType();
 
-    if (!name || !studentType || !isValidPhone(phone)) {
-      customerErrorEl.style.display = 'block';
-      customerNameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Debug logging
+    console.log('Validation check:', { name, phone, stuType, phoneValid: isValidPhone(phone) });
+
+    if (!name) {
+      customerErrorEl.textContent = 'Please enter your name.';
+      customerErrorEl.classList.add('show');
       customerNameEl.focus();
       return;
     }
-    customerErrorEl.style.display = 'none';
+    if (!stuType) {
+      customerErrorEl.textContent = 'Please select Day Scholar or Hostel.';
+      customerErrorEl.classList.add('show');
+      document.querySelector('input[name="student-type"]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!isValidPhone(phone)) {
+      customerErrorEl.textContent = 'Please enter a valid 10-digit phone number.';
+      customerErrorEl.classList.add('show');
+      customerPhoneEl.focus();
+      return;
+    }
+
+    customerErrorEl.classList.remove('show');
 
     calculate();
     logOrderToSheet(name, phone);
@@ -679,17 +690,18 @@ Estimated total: ₹${grandTotal}
   customerNameEl.addEventListener('input', calculate);
   customerPhoneEl.addEventListener('input', calculate);
 
-  // student type
   document.querySelectorAll('input[name="student-type"]').forEach(el => {
     el.addEventListener('change', () => {
-      studentType = el.value;
       calculate();
+      // Clear error if they just fixed it
+      if (getStudentType() && customerNameEl.value.trim() && isValidPhone(customerPhoneEl.value.trim())) {
+        customerErrorEl.classList.remove('show');
+      }
     });
   });
 
   addRowBtn.addEventListener('click', addItem);
 
-  // Initialize with one item
   const firstItem = newItem();
   items.push(firstItem);
   buildItemRow(firstItem, 0);
@@ -697,11 +709,4 @@ Estimated total: ₹${grandTotal}
 </script>
 
 </body>
-</html>'''
-
-with open('/mnt/agents/output/klu_print_desk_order_form.html', 'w', encoding='utf-8') as f:
-    f.write(new_html)
-
-print("File updated successfully!")
-print("Key fix: Event delegation + targeted DOM updates instead of full re-render.")
-print("Now typing in any field only updates the preview/receipt — cursor stays put.")
+</html>
