@@ -108,34 +108,6 @@
   .num-input::-webkit-outer-spin-button, .num-input::-webkit-inner-spin-button{ display:none; margin:0; }
   .num-input:focus{ border-color:var(--ink); background:#fff; }
 
-  .chip-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-  .chip{
-    font-family:'Space Mono', monospace; font-size:14px; font-weight:700;
-    padding:9px 14px; border-radius:999px; border:2px solid var(--rule);
-    background:var(--paper); color:var(--ink); cursor:pointer; line-height:1.2;
-  }
-  .chip:hover{ border-color:var(--ink); }
-  .chip.active{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
-  .chip.custom-chip{ border-style:dashed; color:var(--ink-soft); }
-
-  .toggle-row{ display:flex; gap:8px; flex-wrap:wrap; }
-  .toggle{ flex:1; min-width:100px; position:relative; }
-  .toggle input{ position:absolute; opacity:0; inset:0; cursor:pointer; margin:0; width:100%; height:100%; }
-  .toggle label{
-    display:block; text-align:center; padding:13px 8px; border-radius:10px;
-    border:2px solid var(--rule); font-family:'Space Mono', monospace;
-    font-size:13px; letter-spacing:0.01em; background:var(--paper);
-    transition: background .12s ease, color .12s ease, border-color .12s ease;
-    line-height:1.4;
-  }
-  .toggle label .toggle-price{ display:block; font-size:11px; opacity:0.8; margin-top:3px; }
-  .toggle label .toggle-savings{
-    display:block; font-size:10px; color:var(--ready); font-weight:700; margin-top:2px;
-  }
-  .toggle input:checked + label{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
-  .toggle input:checked + label .toggle-savings{ color:#8FE0AC; }
-  .toggle input:focus-visible + label{ outline:3px solid var(--highlight); outline-offset:2px; }
-
   .item-card{ position:relative; }
   .remove-row{
     background:none; border:none; font-family:'Space Mono', monospace;
@@ -236,6 +208,30 @@
   .binding-visual .bind-icon{ font-size:24px; }
   .binding-visual .bind-name{ font-size:12px; font-weight:700; }
   .binding-visual .bind-desc{ font-size:10px; opacity:0.8; line-height:1.2; }
+
+  /* Toggle styles for binding and student type */
+  .toggle-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .toggle{ flex:1; min-width:100px; position:relative; }
+  .toggle input{ position:absolute; opacity:0; inset:0; cursor:pointer; margin:0; width:100%; height:100%; }
+  .toggle label{
+    display:block; text-align:center; padding:13px 8px; border-radius:10px;
+    border:2px solid var(--rule); font-family:'Space Mono', monospace;
+    font-size:13px; letter-spacing:0.01em; background:var(--paper);
+    transition: background .12s ease, color .12s ease, border-color .12s ease;
+    line-height:1.4;
+  }
+  .toggle label .toggle-price{ display:block; font-size:11px; opacity:0.8; margin-top:3px; }
+  .toggle input:checked + label{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
+  .toggle input:focus-visible + label{ outline:3px solid var(--highlight); outline-offset:2px; }
+
+  /* Side selection - plain text input style */
+  .side-input{
+    width:100%; font-family:'IBM Plex Sans', sans-serif; font-size:18px; font-weight:500;
+    color:var(--ink); background:var(--paper); border:2px solid var(--rule);
+    border-radius:10px; padding:14px 14px; outline:none; -webkit-appearance:none;
+    text-align:center;
+  }
+  .side-input:focus{ border-color:var(--ink); background:#fff; }
 </style>
 <base target="_blank">
 </head>
@@ -348,8 +344,6 @@
   const BINDING_RATES = { tape: 20, spiral: 20, book: 50 };
   const SERVICE_FEE = 10;
   const PHONE = "919390110070";
-  const QTY_PRESETS = [1, 2, 3, 5];
-  const PAGE_PRESETS = [10, 20, 50, 100];
 
   const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw-Z9ChKpup_fc4Rw_0ywIW1Af5Fq5zmhwlWkGko2F1m065w_IqGqezJElS9_MCC00P0A/exec";
 
@@ -377,7 +371,7 @@
   let items = [];
 
   function newItem() {
-    return { id: nextId++, name: '', qty: 1, pages: 20, side: 'single', bindingType: 'spiral' };
+    return { id: nextId++, name: '', pages: '', qty: '', side: 'single', bindingType: 'spiral' };
   }
 
   function addItem() {
@@ -391,28 +385,13 @@
     render();
   }
 
-  function chipRow(fieldKey, itemId, currentValue, presets) {
-    const chips = presets.map(p => `<button type="button" class="chip ${currentValue === p ? 'active' : ''}" data-id="${itemId}" data-key="${fieldKey}" data-value="${p}">${p}</button>`).join('');
-    return `<div class="chip-row">${chips}<span class="chip custom-chip">or type below</span></div>`;
-  }
-
-  function getBindingVisual(type) {
-    const visuals = {
-      tape: { icon: '📎', name: 'Tape', desc: 'Quick & cheap' },
-      spiral: { icon: '🌀', name: 'Spiral', desc: 'Best for notes' },
-      book: { icon: '📘', name: 'Book Bind', desc: 'Premium look' }
-    };
-    const v = visuals[type];
-    return `<div class="binding-visual"><span class="bind-icon">${v.icon}</span><span class="bind-name">${v.name}</span><span class="bind-desc">${v.desc}</span></div>`;
-  }
-
   function render() {
     itemRowsEl.innerHTML = '';
     items.forEach((item, idx) => {
-      const qty = item.qty || 1;
-      const pages = item.pages || 1;
+      const qty = parseInt(item.qty) || 1;
+      const pages = parseInt(item.pages) || 0;
       const singlePapers = pages * qty;
-      const doublePapers = Math.ceil(pages / 2) * qty;
+      const doublePapers = pages > 0 ? Math.ceil(pages / 2) * qty : 0;
       const papersSaved = singlePapers - doublePapers;
       const moneySaved = papersSaved * RATE_PER_PAPER;
       const currentPapers = item.side === 'double' ? doublePapers : singlePapers;
@@ -435,38 +414,25 @@
         </div>
 
         <div class="field">
-          <span class="field-label">How many copies?</span>
-          ${chipRow('qty', item.id, item.qty, QTY_PRESETS)}
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="3" value="${item.qty}" data-id="${item.id}" data-key="qty">
-        </div>
-
-        <div class="field">
           <span class="field-label">How many pages in your PDF? <span class="field-hint">(Open the PDF and check the page count)</span></span>
-          ${chipRow('pages', item.id, item.pages, PAGE_PRESETS)}
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="4" value="${item.pages}" data-id="${item.id}" data-key="pages">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="4" placeholder="Type number of pages" value="${item.pages}" data-id="${item.id}" data-key="pages">
         </div>
 
         <div class="field">
-          <span class="field-label">Print on one side or both sides?</span>
-          <div class="toggle-row" role="radiogroup" aria-label="Print side">
-            <div class="toggle">
-              <input type="radio" name="side-${item.id}" id="single-${item.id}" value="single" data-id="${item.id}" ${item.side === 'single' ? 'checked' : ''}>
-              <label for="single-${item.id}">
-                1 Side
-                <span class="toggle-price">${singlePapers} papers used</span>
-                <span class="toggle-price">Printing cost: ₹${singlePapers}</span>
-              </label>
-            </div>
-            <div class="toggle">
-              <input type="radio" name="side-${item.id}" id="double-${item.id}" value="double" data-id="${item.id}" ${item.side === 'double' ? 'checked' : ''}>
-              <label for="double-${item.id}">
-                2 Side
-                <span class="toggle-price">${doublePapers} papers used</span>
-                <span class="toggle-price">Printing cost: ₹${doublePapers}</span>
-                ${moneySaved > 0 ? `<span class="toggle-savings">💰 Saves ₹${moneySaved}!</span>` : ''}
-              </label>
-            </div>
-          </div>
+          <span class="field-label">How many copies? <span class="field-hint">(How many printouts you want)</span></span>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" class="num-input" maxlength="3" placeholder="Type number of copies" value="${item.qty}" data-id="${item.id}" data-key="qty">
+        </div>
+
+        <div class="field">
+          <span class="field-label">Print on one side or both sides? <span class="field-hint">(Type 1 or 2)</span></span>
+          <input type="text" inputmode="numeric" pattern="[1-2]" class="side-input" maxlength="1" placeholder="Type 1 for one side, 2 for both sides" value="${item.side === 'double' ? '2' : '1'}" data-id="${item.id}" data-key="side">
+          ${pages > 0 && qty > 0 ? `
+            <span class="field-hint" style="margin-top:8px;">
+              ${item.side === 'double' 
+                ? `✅ 2-side will use <strong>${doublePapers} papers</strong> — saves ₹${moneySaved} compared to 1-side (${singlePapers} papers)` 
+                : `1-side will use <strong>${singlePapers} papers</strong>. Type 2 above to save ₹${moneySaved} (uses only ${doublePapers} papers)`}
+            </span>
+          ` : ''}
         </div>
 
         <div class="field">
@@ -474,25 +440,27 @@
           <div class="toggle-row" role="radiogroup" aria-label="Binding type">
             <div class="toggle">
               <input type="radio" name="bind-${item.id}" id="tape-${item.id}" value="tape" data-id="${item.id}" ${item.bindingType === 'tape' ? 'checked' : ''}>
-              <label for="tape-${item.id}">${getBindingVisual('tape')}<span class="toggle-price">₹20</span></label>
+              <label for="tape-${item.id}">📎 Tape<span class="toggle-price">₹20</span></label>
             </div>
             <div class="toggle">
               <input type="radio" name="bind-${item.id}" id="spiral-${item.id}" value="spiral" data-id="${item.id}" ${item.bindingType === 'spiral' ? 'checked' : ''}>
-              <label for="spiral-${item.id}">${getBindingVisual('spiral')}<span class="toggle-price">₹20</span></label>
+              <label for="spiral-${item.id}">🌀 Spiral<span class="toggle-price">₹20</span></label>
             </div>
             <div class="toggle">
               <input type="radio" name="bind-${item.id}" id="book-${item.id}" value="book" data-id="${item.id}" ${item.bindingType === 'book' ? 'checked' : ''}>
-              <label for="book-${item.id}">${getBindingVisual('book')}<span class="toggle-price">₹50</span></label>
+              <label for="book-${item.id}">📘 Book Bind<span class="toggle-price">₹50</span></label>
             </div>
           </div>
         </div>
 
+        ${pages > 0 && qty > 0 ? `
         <div class="item-cost-preview">
           <div class="cost-line"><span>Printing (${currentPapers} papers × ₹1)</span><span>₹${printCost}</span></div>
           <div class="cost-line"><span>${item.bindingType === 'tape' ? 'Tape' : item.bindingType === 'book' ? 'Book' : 'Spiral'} binding × ${qty}</span><span>₹${bindCost}</span></div>
           <div class="cost-line"><span>Service fee × ${qty}</span><span>₹${serviceCost}</span></div>
           <div class="cost-line total"><span>Cost for this subject</span><span>₹${itemTotal}</span></div>
         </div>
+        ` : '<div class="item-cost-preview" style="color:var(--ink-soft);"><em>Enter pages and copies above to see cost breakdown</em></div>'}
       `;
       itemRowsEl.appendChild(row);
     });
@@ -506,48 +474,34 @@
       });
     });
 
-    // number fields
-    itemRowsEl.querySelectorAll('input.num-input').forEach(el => {
+    // number fields (pages, qty, side)
+    itemRowsEl.querySelectorAll('input.num-input, input.side-input').forEach(el => {
       el.addEventListener('input', () => {
         const digitsOnly = el.value.replace(/[^0-9]/g, '');
         if (digitsOnly !== el.value) el.value = digitsOnly;
         const item = items.find(i => i.id == el.dataset.id);
-        const val = parseInt(digitsOnly, 10);
-        item[el.dataset.key] = isNaN(val) ? '' : val;
-        syncChips(item, el.dataset.key);
+
+        if (el.dataset.key === 'side') {
+          // Side: 1 = single, 2 = double, anything else defaults to single
+          item.side = (digitsOnly === '2') ? 'double' : 'single';
+        } else {
+          item[el.dataset.key] = digitsOnly;
+        }
         render();
       });
       el.addEventListener('blur', () => {
         const item = items.find(i => i.id == el.dataset.id);
-        if (!item[el.dataset.key] || item[el.dataset.key] < 1) {
-          item[el.dataset.key] = 1;
-          el.value = 1;
-          syncChips(item, el.dataset.key);
-          render();
+        if (el.dataset.key === 'pages' || el.dataset.key === 'qty') {
+          const val = parseInt(item[el.dataset.key], 10);
+          if (!val || val < 1) {
+            item[el.dataset.key] = '';
+            el.value = '';
+            render();
+          }
         }
       });
     });
 
-    // chips
-    itemRowsEl.querySelectorAll('.chip[data-value]').forEach(el => {
-      el.addEventListener('click', () => {
-        const item = items.find(i => i.id == el.dataset.id);
-        const val = parseInt(el.dataset.value, 10);
-        item[el.dataset.key] = val;
-        const numInput = itemRowsEl.querySelector(`input.num-input[data-id="${el.dataset.id}"][data-key="${el.dataset.key}"]`);
-        if (numInput) numInput.value = val;
-        syncChips(item, el.dataset.key);
-        render();
-      });
-    });
-
-    itemRowsEl.querySelectorAll('input[name^="side-"]').forEach(el => {
-      el.addEventListener('change', () => {
-        const item = items.find(i => i.id == el.dataset.id);
-        item.side = el.value;
-        render();
-      });
-    });
     itemRowsEl.querySelectorAll('input[name^="bind-"]').forEach(el => {
       el.addEventListener('change', () => {
         const item = items.find(i => i.id == el.dataset.id);
@@ -562,12 +516,6 @@
     calculate();
   }
 
-  function syncChips(item, key) {
-    itemRowsEl.querySelectorAll(`.chip[data-id="${item.id}"][data-key="${key}"]`).forEach(chipEl => {
-      chipEl.classList.toggle('active', parseInt(chipEl.dataset.value, 10) === item[key]);
-    });
-  }
-
   function calculate() {
     let totalCopies = 0;
     let grandTotal = 0;
@@ -575,8 +523,10 @@
     let waLines = [];
 
     items.forEach((item, idx) => {
-      const qty = item.qty || 1;
-      const pages = item.pages || 1;
+      const qty = parseInt(item.qty) || 0;
+      const pages = parseInt(item.pages) || 0;
+      if (qty === 0 || pages === 0) return;
+
       const papersPerCopy = item.side === 'double' ? Math.ceil(pages / 2) : pages;
       const totalPapers = papersPerCopy * qty;
       const printCost = totalPapers * RATE_PER_PAPER;
@@ -657,11 +607,11 @@ Estimated total: ₹${grandTotal}
           total: lastGrandTotal,
           fullMessage: lastMessage,
           timestamp: new Date().toLocaleString('en-IN', { 
-          timeZone: 'Asia/Kolkata', 
-          year: 'numeric', month: '2-digit', day: '2-digit',
-          hour: '2-digit', minute: '2-digit', second: '2-digit',
-          hour12: true 
-        })
+            timeZone: 'Asia/Kolkata', 
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: true 
+          })
         })
       });
     } catch (err) {
