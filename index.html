@@ -337,13 +337,13 @@
   const BINDING_RATES = { tape: 20, spiral: 20, book: 50 };
   const SERVICE_FEE = 10;
 
-  // Vendor cost constants (internal only)
+  // Vendor cost constants (internal only — what you pay the printer)
   const VENDOR_RATE_PER_PAPER = 0.8;
   const VENDOR_BINDING_RATES = { tape: 10, spiral: 20, book: 50 };
 
   const PHONE = "919390110070";
 
-  const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxQ6chBbnT2-9uTFTB-bmJSo3xsZvqndboNAsWlmr7bXb-Y87lGOPcWzmcHzNlXASReGA/exec";
+  const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbx5aBwkd4eX7-gJpintQm3v0BQPZuewN72ahdzh8sf2-o9H8SDD5RsNd4fjJrd3Se0Ogg/exec";
 
   const itemRowsEl = document.getElementById('item-rows');
   const addRowBtn = document.getElementById('add-row');
@@ -567,7 +567,7 @@
       grandTotal += itemTotal;
       totalCopies += qty;
 
-      // Vendor cost (internal only — no service fee)
+      // Vendor cost (internal only — what you pay the printer, no service fee)
       const vendorPrintCost = totalPapers * VENDOR_RATE_PER_PAPER;
       const vendorBindRate = VENDOR_BINDING_RATES[item.bindingType] || VENDOR_BINDING_RATES.tape;
       const vendorBindCost = vendorBindRate * qty;
