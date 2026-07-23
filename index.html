@@ -288,11 +288,7 @@
         • 2-side printing uses half the papers → costs half as much<br>
         • Binding: Tape ₹20 · Spiral ₹20 · Book Bind ₹50<br>
         • Service fee: ₹10 per copy<br>
-        <br>
-        <strong>Vendor costs (what you pay the printer):</strong><br>
-        • Printing = ₹0.80 per physical paper<br>
-        • Binding: Tape ₹10 · Spiral ₹20 · Book Bind ₹50<br>
-        • No service fee added to vendor cost
+
       </p>
     </div>
 
@@ -305,7 +301,7 @@
       <div class="line-item"><span>Total service fee</span><span id="service-cost">₹10</span></div>
       <hr>
       <div class="total-row"><span>Total</span><span id="grand-total">₹30</span></div>
-      <div class="line-item" style="margin-top:8px; color:#B9C4B2; font-size:12px;"><span>💰 Total vendor cost (what you pay printer)</span><span id="vendor-total">₹0.00</span></div>
+
       <span class="stamp">Pay on pickup</span>
 
       <a class="cta" id="whatsapp-cta" href="#" target="_blank" rel="noopener">Order on WhatsApp</a>
@@ -442,9 +438,7 @@
       <div class="item-cost-preview empty" data-id="${item.id}" data-key="cost-preview">
         Enter pages and copies above to see cost breakdown
       </div>
-      <div class="item-cost-preview vendor empty" data-id="${item.id}" data-key="vendor-cost-preview" style="margin-top:8px; background:#f8f0e8; border-color:#e0d0c0;">
-        Vendor cost will appear here
-      </div>
+
     `;
     itemRowsEl.appendChild(row);
   }
@@ -542,30 +536,12 @@
         <div class="cost-line total"><span>Cost for this subject</span><span>₹${itemTotal}</span></div>
       `;
 
-      // Vendor cost preview
-      const vendorPrintCost = currentPapers * VENDOR_RATE_PER_PAPER;
-      const vendorBindRate = VENDOR_BINDING_RATES[item.bindingType] || VENDOR_BINDING_RATES.tape;
-      const vendorBindCost = vendorBindRate * qty;
-      const vendorItemTotal = vendorPrintCost + vendorBindCost;
-      const vendorPreviewEl = document.querySelector(`.item-cost-preview.vendor[data-id="${item.id}"][data-key="vendor-cost-preview"]`);
-      if (vendorPreviewEl) {
-        vendorPreviewEl.classList.remove('empty');
-        vendorPreviewEl.innerHTML = `
-          <div style="font-weight:700; margin-bottom:6px; color:#8B5E3C;">💰 Vendor Cost</div>
-          <div class="cost-line"><span>Printing (${currentPapers} papers × ₹${VENDOR_RATE_PER_PAPER})</span><span>₹${vendorPrintCost.toFixed(2)}</span></div>
-          <div class="cost-line"><span>${item.bindingType === 'tape' ? 'Tape' : item.bindingType === 'book' ? 'Book' : 'Spiral'} binding × ${qty}</span><span>₹${vendorBindCost}</span></div>
-          <div class="cost-line total" style="color:#8B5E3C;"><span>Vendor total (no service fee)</span><span>₹${vendorItemTotal.toFixed(2)}</span></div>
-        `;
-      }
+
     } else {
       hintEl.innerHTML = '';
       previewEl.classList.add('empty');
       previewEl.innerHTML = 'Enter pages and copies above to see cost breakdown';
-      const vendorPreviewEl = document.querySelector(`.item-cost-preview.vendor[data-id="${item.id}"][data-key="vendor-cost-preview"]`);
-      if (vendorPreviewEl) {
-        vendorPreviewEl.classList.add('empty');
-        vendorPreviewEl.innerHTML = 'Vendor cost will appear here';
-      }
+
     }
   }
 
@@ -608,11 +584,11 @@
         <div class="line-item"><span>Printing (${totalPapers} papers)</span><span>₹${printCost}</span></div>
         <div class="line-item"><span>${bindLabel} × ${qty}</span><span>₹${bindCost}</span></div>
         <div class="line-item"><span>Service fee × ${qty}</span><span>₹${serviceCost}</span></div>
-        <div class="line-item" style="color:#B9C4B2; font-size:11px; margin-top:4px; border-top:1px dashed #445248; padding-top:4px;"><span>💰 Vendor cost (no service fee)</span><span>₹${vendorItemTotal.toFixed(2)}</span></div>
+
       `;
       receiptItemsEl.appendChild(block);
 
-      waLines.push(`${label}: ${qty} copy(ies), ${pages} pages, ${item.side === 'double' ? '2 side' : '1 side'}, ${bindLabel.toLowerCase()} — ₹${itemTotal} (Vendor: ₹${vendorItemTotal.toFixed(2)})`);
+      waLines.push(`${label}: ${qty} copy(ies), ${pages} pages, ${item.side === 'double' ? '2 side' : '1 side'}, ${bindLabel.toLowerCase()} — ₹${itemTotal}`);
     });
 
     const itemCountText = `${items.length} item${items.length > 1 ? 's' : ''} · ${totalCopies} copy${totalCopies !== 1 ? 'ies' : ''}`;
@@ -622,9 +598,7 @@
     grandTotalEl.textContent = `₹${grandTotal}`;
     sbTotal.textContent = `₹${grandTotal}`;
 
-    // Update vendor total in receipt
-    const vendorTotalEl = document.getElementById('vendor-total');
-    if (vendorTotalEl) vendorTotalEl.textContent = `₹${vendorGrandTotal.toFixed(2)}`;
+
 
     const name = customerNameEl.value.trim();
     const phone = customerPhoneEl.value.trim();
@@ -637,8 +611,6 @@ Phone: ${phone || '(not entered yet)'}
 ${waLines.join('\n')}
 Total service fee: ₹${SERVICE_FEE * totalCopies}
 Estimated total: ₹${grandTotal}
-💰 Total vendor cost: ₹${vendorGrandTotal.toFixed(2)}
-
 (Sending the PDF of each subject in this chat)`;
 
     lastMessage = message;
@@ -682,6 +654,7 @@ Estimated total: ₹${grandTotal}
           total: lastGrandTotal,
           paidAmount: 0,
           fullMessage: lastMessage,
+          vendorCost: lastVendorTotal,
           timestamp: new Date().toLocaleString('en-IN', { 
             timeZone: 'Asia/Kolkata', 
             year: 'numeric', month: '2-digit', day: '2-digit',
