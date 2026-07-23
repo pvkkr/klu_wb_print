@@ -287,8 +287,7 @@
         • Printing = ₹1 per <em>physical paper</em> used (not per PDF page)<br>
         • 2-side printing uses half the papers → costs half as much<br>
         • Binding: Tape ₹20 · Spiral ₹20 · Book Bind ₹50<br>
-        • Service fee: ₹10 per copy<br>
-
+        • Service fee: ₹10 per copy
       </p>
     </div>
 
@@ -301,7 +300,6 @@
       <div class="line-item"><span>Total service fee</span><span id="service-cost">₹10</span></div>
       <hr>
       <div class="total-row"><span>Total</span><span id="grand-total">₹30</span></div>
-
       <span class="stamp">Pay on pickup</span>
 
       <a class="cta" id="whatsapp-cta" href="#" target="_blank" rel="noopener">Order on WhatsApp</a>
@@ -338,6 +336,11 @@
   const RATE_PER_PAPER = 1;
   const BINDING_RATES = { tape: 20, spiral: 20, book: 50 };
   const SERVICE_FEE = 10;
+
+  // Vendor cost constants (internal only)
+  const VENDOR_RATE_PER_PAPER = 0.8;
+  const VENDOR_BINDING_RATES = { tape: 10, spiral: 20, book: 50 };
+
   const PHONE = "919390110070";
 
   const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxQ6chBbnT2-9uTFTB-bmJSo3xsZvqndboNAsWlmr7bXb-Y87lGOPcWzmcHzNlXASReGA/exec";
@@ -360,6 +363,7 @@
   let lastGrandTotal = 0;
   let lastItemsSummary = '';
   let lastServiceFee = 0;
+  let lastVendorTotal = 0;
 
   let nextId = 1;
   let items = [];
@@ -438,7 +442,6 @@
       <div class="item-cost-preview empty" data-id="${item.id}" data-key="cost-preview">
         Enter pages and copies above to see cost breakdown
       </div>
-
     `;
     itemRowsEl.appendChild(row);
   }
@@ -535,13 +538,10 @@
         <div class="cost-line"><span>Service fee × ${qty}</span><span>₹${serviceCost}</span></div>
         <div class="cost-line total"><span>Cost for this subject</span><span>₹${itemTotal}</span></div>
       `;
-
-
     } else {
       hintEl.innerHTML = '';
       previewEl.classList.add('empty');
       previewEl.innerHTML = 'Enter pages and copies above to see cost breakdown';
-
     }
   }
 
@@ -567,7 +567,7 @@
       grandTotal += itemTotal;
       totalCopies += qty;
 
-      // Vendor cost (what you pay the printer — no service fee)
+      // Vendor cost (internal only — no service fee)
       const vendorPrintCost = totalPapers * VENDOR_RATE_PER_PAPER;
       const vendorBindRate = VENDOR_BINDING_RATES[item.bindingType] || VENDOR_BINDING_RATES.tape;
       const vendorBindCost = vendorBindRate * qty;
@@ -584,7 +584,6 @@
         <div class="line-item"><span>Printing (${totalPapers} papers)</span><span>₹${printCost}</span></div>
         <div class="line-item"><span>${bindLabel} × ${qty}</span><span>₹${bindCost}</span></div>
         <div class="line-item"><span>Service fee × ${qty}</span><span>₹${serviceCost}</span></div>
-
       `;
       receiptItemsEl.appendChild(block);
 
@@ -598,8 +597,6 @@
     grandTotalEl.textContent = `₹${grandTotal}`;
     sbTotal.textContent = `₹${grandTotal}`;
 
-
-
     const name = customerNameEl.value.trim();
     const phone = customerPhoneEl.value.trim();
 
@@ -611,6 +608,7 @@ Phone: ${phone || '(not entered yet)'}
 ${waLines.join('\n')}
 Total service fee: ₹${SERVICE_FEE * totalCopies}
 Estimated total: ₹${grandTotal}
+
 (Sending the PDF of each subject in this chat)`;
 
     lastMessage = message;
@@ -668,14 +666,11 @@ Estimated total: ₹${grandTotal}
     }
   }
 
-  function handleOrderClick(e) {
+  async function handleOrderClick(e) {
     e.preventDefault();
     const name = customerNameEl.value.trim();
     const phone = customerPhoneEl.value.trim();
     const stuType = getStudentType();
-
-    // Debug logging
-    console.log('Validation check:', { name, phone, stuType, phoneValid: isValidPhone(phone) });
 
     if (!name) {
       customerErrorEl.textContent = 'Please enter your name.';
@@ -699,7 +694,7 @@ Estimated total: ₹${grandTotal}
     customerErrorEl.classList.remove('show');
 
     calculate();
-    logOrderToSheet(name, phone);
+    await logOrderToSheet(name, phone);
     window.open(whatsappCta.href, '_blank', 'noopener');
   }
 
